@@ -18,7 +18,7 @@
 
 ## 🚀 Использование
 
-Просто открой `index.html` в браузере или зайди на [GitHub Pages]([https://maxsim-creator.github.io/Pixel-Editor/](https://maxsim-creator.github.io/Pixel_Editor/)).
+Просто открой `index.html` в браузере или зайди на [GitHub Pages](([https://maxsim-creator.github.io/Pixel-Editor/](https://maxsim-creator.github.io/Pixel_Editor/)).
 
 ## 🌍 Языки
 
