@@ -1,0 +1,2073 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title data-i18n="title">Pixel Art Editor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #1e1e1e;
+    color: #ddd;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* === Языковой селектор в углу === */
+  .lang-picker {
+    position: fixed;
+    top: 10px;
+    right: 300px;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #2d2d2d;
+    border: 1px solid #555;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 13px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+  .lang-picker label {
+    color: #888;
+    font-size: 14px;
+  }
+  .lang-picker select {
+    background: #1e1e1e;
+    color: #ddd;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 3px 6px;
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+  }
+  .lang-picker select:hover { border-color: #4a90e2; }
+
+  .toolbar {
+    width: 60px;
+    background: #2d2d2d;
+    border-right: 1px solid #444;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 0;
+    gap: 4px;
+    overflow-y: auto;
+  }
+  .toolbar button {
+    width: 44px; height: 44px;
+    background: #3a3a3a;
+    border: 1px solid #555;
+    color: #ddd;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s;
+    flex-shrink: 0;
+  }
+  .toolbar button:hover { background: #4a4a4a; }
+  .toolbar button.active {
+    background: #4a90e2;
+    border-color: #6ab0ff;
+    color: #fff;
+  }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .topbar {
+    background: #2d2d2d;
+    border-bottom: 1px solid #444;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .topbar label { font-size: 13px; }
+  .topbar input[type="number"] {
+    width: 58px;
+    background: #1e1e1e;
+    color: #ddd;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 4px;
+  }
+  .topbar input[type="range"] { width: 100px; }
+  .topbar .sep { width: 1px; height: 24px; background: #555; }
+  .topbar button {
+    background: #3a3a3a;
+    border: 1px solid #555;
+    color: #ddd;
+    padding: 6px 9px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .topbar button:hover { background: #4a4a4a; }
+  .topbar button.primary { background: #4a90e2; border-color: #6ab0ff; color: #fff; }
+  .topbar button.primary:hover { background: #5aa0f2; }
+
+  .canvas-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #151515;
+    overflow: auto;
+    padding: 20px;
+  }
+
+  .canvas-container {
+    position: relative;
+    display: inline-block;
+    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+    border: 1px solid #555;
+    line-height: 0;
+  }
+
+  #checkerCanvas,
+  #drawCanvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  #checkerCanvas {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+  }
+
+  #drawCanvas {
+    position: relative;
+    z-index: 1;
+    background: transparent;
+  }
+
+  #selRects {
+    position: absolute;
+    top: 0; left: 0;
+    right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 3;
+  }
+  .sel-box {
+    position: absolute;
+    border: 1px dashed #fff;
+    outline: 1px dashed #000;
+    box-sizing: border-box;
+    pointer-events: none;
+  }
+
+  #floatCanvas {
+    position: absolute;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    pointer-events: none;
+    display: none;
+    z-index: 4;
+  }
+
+  #gridOverlay {
+    position: absolute;
+    top: 0; left: 0;
+    z-index: 5;
+    pointer-events: none;
+    display: none;
+  }
+
+  #inputCanvas {
+    position: absolute;
+    top: 0; left: 0;
+    z-index: 6;
+    cursor: crosshair;
+    opacity: 0;
+  }
+
+  .sidebar {
+    width: 280px;
+    background: #2d2d2d;
+    border-left: 1px solid #444;
+    padding: 12px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .sidebar h3 {
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 4px;
+    letter-spacing: 1px;
+  }
+
+  .color-preview { display: flex; gap: 6px; margin-bottom: 6px; }
+  .color-preview .swatch {
+    flex: 1; height: 50px;
+    border-radius: 6px;
+    border: 1px solid #555;
+    cursor: pointer;
+    position: relative;
+  }
+  .color-preview .swatch.small { flex: 0 0 50px; }
+  .color-preview .swatch span {
+    position: absolute;
+    bottom: 2px; left: 4px;
+    font-size: 10px;
+    color: rgba(255,255,255,0.7);
+    text-shadow: 0 0 2px #000;
+  }
+  .color-input {
+    width: 100%;
+    height: 36px;
+    border: 1px solid #555;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    margin-bottom: 6px;
+  }
+
+  .palette {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 3px;
+    margin-bottom: 6px;
+  }
+  .palette .c {
+    aspect-ratio: 1;
+    border-radius: 3px;
+    cursor: pointer;
+    border: 1px solid rgba(0,0,0,0.3);
+  }
+  .palette .c:hover { transform: scale(1.1); }
+
+  .brush-size-block {
+    background: #262626;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 8px;
+  }
+  .brush-size-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .brush-size-row input[type="range"] {
+    flex: 1;
+    accent-color: #4a90e2;
+  }
+  .brush-size-value {
+    min-width: 40px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: #4a90e2;
+    background: #1e1e1e;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 2px 6px;
+  }
+  .brush-preview {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 40px;
+    background: #1e1e1e;
+    border: 1px solid #444;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    position: relative;
+    overflow: hidden;
+  }
+  .brush-preview .dot {
+    background: #ddd;
+    box-shadow: 0 0 6px rgba(255,255,255,0.4);
+  }
+  .brush-presets {
+    display: flex;
+    gap: 4px;
+    justify-content: space-between;
+  }
+  .brush-presets button {
+    flex: 1;
+    background: #3a3a3a;
+    border: 1px solid #555;
+    color: #ddd;
+    padding: 4px 0;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .brush-presets button:hover { background: #4a4a4a; }
+  .brush-presets button.active {
+    background: #4a90e2;
+    border-color: #6ab0ff;
+    color: #fff;
+  }
+
+  .clipboard-panel {
+    background: #1e1e1e;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 6px;
+    flex: 1 1 auto;
+    min-height: 240px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .clipboard-empty {
+    font-size: 12px;
+    color: #666;
+    text-align: center;
+    padding: 20px 6px;
+    font-style: italic;
+  }
+  .clip-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 5px;
+    cursor: pointer;
+    background: #262626;
+    border: 1px solid transparent;
+    transition: background .15s;
+    user-select: none;
+    min-height: 72px;
+  }
+  .clip-item:hover { background: #333; }
+  .clip-item.active {
+    background: #345580;
+    border-color: #4a90e2;
+  }
+  .clip-item .thumb {
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
+    background:
+      linear-gradient(45deg, #ccc 25%, transparent 25%),
+      linear-gradient(-45deg, #ccc 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #ccc 75%),
+      linear-gradient(-45deg, transparent 75%, #ccc 75%),
+      #fff;
+    background-size: 8px 8px;
+    background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+    border: 1px solid #555;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .clip-item .thumb canvas {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    max-width: 100%;
+    max-height: 100%;
+  }
+  .clip-item .meta {
+    flex: 1;
+    font-size: 11px;
+    color: #aaa;
+    line-height: 1.4;
+    overflow: hidden;
+  }
+  .clip-item .meta .title {
+    color: #ddd;
+    font-size: 12px;
+    font-weight: 500;
+    margin-bottom: 2px;
+  }
+  .clip-item .del {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    color: #888;
+    cursor: pointer;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .clip-item .del:hover {
+    background: #663333;
+    color: #ffaaaa;
+  }
+
+  .clipboard-actions {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+  .clipboard-actions button {
+    flex: 1;
+    background: #3a3a3a;
+    border: 1px solid #555;
+    color: #ddd;
+    padding: 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .clipboard-actions button:hover { background: #4a4a4a; }
+
+  .transform-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+  }
+  .transform-buttons button {
+    background: #3a3a3a;
+    border: 1px solid #555;
+    color: #ddd;
+    padding: 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .transform-buttons button:hover { background: #4a4a4a; }
+
+  .options-block { display: flex; flex-direction: column; gap: 4px; }
+  .options-block label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .options-block select {
+    background: #1e1e1e;
+    color: #ddd;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 3px 6px;
+    flex: 1;
+  }
+
+  details.hotkeys {
+    background: #262626;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 0;
+    overflow: hidden;
+  }
+  details.hotkeys summary {
+    padding: 8px 10px;
+    cursor: pointer;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #888;
+    letter-spacing: 1px;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  details.hotkeys summary::-webkit-details-marker { display: none; }
+  details.hotkeys summary::after {
+    content: '▸';
+    color: #888;
+    transition: transform .2s;
+  }
+  details.hotkeys[open] summary::after {
+    transform: rotate(90deg);
+  }
+  details.hotkeys summary:hover { color: #bbb; }
+  details.hotkeys .info {
+    padding: 8px 10px 12px;
+    font-size: 11px;
+    color: #aaa;
+    line-height: 1.7;
+    border-top: 1px solid #333;
+  }
+  details.hotkeys kbd {
+    background: #3a3a3a;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    border: 1px solid #555;
+    font-family: monospace;
+  }
+</style>
+</head>
+<body>
+
+  <!-- Выбор языка -->
+  <div class="lang-picker">
+    <label>🌍</label>
+    <select id="langSelect"></select>
+  </div>
+
+  <div class="toolbar">
+    <button class="tool active" data-tool="pencil" data-i18n-title="tool_pencil" title="Карандаш (B)">✏️</button>
+    <button class="tool" data-tool="eraser" data-i18n-title="tool_eraser" title="Ластик (E)">🧽</button>
+    <button class="tool" data-tool="fill" data-i18n-title="tool_fill" title="Заливка (G)">🪣</button>
+    <button class="tool" data-tool="picker" data-i18n-title="tool_picker" title="Пипетка (I)">💧</button>
+    <button class="tool" data-tool="line" data-i18n-title="tool_line" title="Линия (L)">📏</button>
+    <button class="tool" data-tool="rect" data-i18n-title="tool_rect" title="Прямоугольник (R)">▭</button>
+    <button class="tool" data-tool="rectfill" data-i18n-title="tool_rectfill" title="Залитый прямоугольник">▬</button>
+    <button class="tool" data-tool="circle" data-i18n-title="tool_circle" title="Круг (C)">⭕</button>
+    <button class="tool" data-tool="circlefill" data-i18n-title="tool_circlefill" title="Залитый круг">⚫</button>
+    <button class="tool" data-tool="move" data-i18n-title="tool_move" title="Перемещение (M)">✋</button>
+    <button class="tool" data-tool="select" data-i18n-title="tool_select" title="Выделение (S)">🔲</button>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <label>
+        <span data-i18n="size">Размер:</span>
+        <input type="number" id="sizeInput" value="32" min="8" max="256" step="1">
+        ×
+        <input type="number" id="sizeInput2" value="32" min="8" max="256" step="1">
+      </label>
+      <button class="primary" id="resizeBtn" data-i18n="apply">Применить</button>
+      <div class="sep"></div>
+      <label>
+        <span data-i18n="zoom">Зум:</span>
+        <input type="range" id="zoom" min="4" max="32" value="16">
+        <span id="zoomVal">16x</span>
+      </label>
+      <div class="sep"></div>
+      <button id="undoBtn" data-i18n="undo">↶ Отменить</button>
+      <button id="redoBtn" data-i18n="redo">↷ Повторить</button>
+      <div class="sep"></div>
+      <button id="clearBtn" data-i18n="clear">🗑 Очистить</button>
+      <button class="primary" id="exportBtn" data-i18n="export">💾 Скачать PNG</button>
+      <button id="importBtn" data-i18n="import">📂 Импорт</button>
+      <input type="file" id="fileInput" accept="image/*" style="display:none">
+    </div>
+
+    <div class="canvas-wrap">
+      <div class="canvas-container" id="canvasContainer">
+        <canvas id="checkerCanvas"></canvas>
+        <canvas id="drawCanvas"></canvas>
+        <div id="selRects"></div>
+        <canvas id="floatCanvas"></canvas>
+        <div id="gridOverlay"></div>
+        <canvas id="inputCanvas"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+
+    <h3 data-i18n="brush_size">Размер кисти</h3>
+    <div class="brush-size-block">
+      <div class="brush-preview">
+        <div class="dot" id="brushDot" style="width:4px;height:4px;"></div>
+      </div>
+      <div class="brush-size-row">
+        <input type="range" id="brushSize" min="1" max="8" value="1" step="1">
+        <div class="brush-size-value" id="brushSizeVal">1</div>
+      </div>
+      <div class="brush-presets" id="brushPresets">
+        <button data-size="1" class="active">1</button>
+        <button data-size="2">2</button>
+        <button data-size="3">3</button>
+        <button data-size="4">4</button>
+        <button data-size="6">6</button>
+        <button data-size="8">8</button>
+      </div>
+    </div>
+
+    <h3 data-i18n="clipboard">Буфер обмена</h3>
+    <div class="clipboard-panel" id="clipboardPanel">
+      <div class="clipboard-empty" data-i18n="clipboard_empty">Пусто. Выдели область и нажми Ctrl+C</div>
+    </div>
+    <div class="clipboard-actions">
+      <button id="pasteSelectedBtn" data-i18n="paste">📥 Вставить</button>
+      <button id="clearClipboardBtn" data-i18n="clear_all">🧹 Очистить всё</button>
+    </div>
+
+    <h3 data-i18n="color">Цвет</h3>
+    <div class="color-preview">
+      <div class="swatch" id="fgSwatch" style="background:#000000"><span>FG</span></div>
+      <div class="swatch small" id="bgSwatch" style="background:#ffffff"><span>BG</span></div>
+    </div>
+    <input type="color" class="color-input" id="colorPicker" value="#000000">
+    <button id="swapBtn" style="width:100%;background:#3a3a3a;border:1px solid #555;color:#ddd;padding:6px;border-radius:4px;cursor:pointer;margin-bottom:6px;" data-i18n="swap">⇄ Поменять FG/BG (X)</button>
+
+    <h3 data-i18n="palette">Палитра</h3>
+    <div class="palette" id="palette"></div>
+
+    <h3 data-i18n="transforms">Трансформации</h3>
+    <div class="transform-buttons">
+      <button id="rot90cw" data-i18n="rot_cw">↻ 90°</button>
+      <button id="rot90ccw" data-i18n="rot_ccw">↺ 90°</button>
+      <button id="flipH" data-i18n="flip_h">↔ Отразить</button>
+      <button id="flipV" data-i18n="flip_v">↕ Отразить</button>
+    </div>
+
+    <h3 data-i18n="symmetry">Симметрия</h3>
+    <div class="options-block">
+      <label><input type="checkbox" id="symX"> <span data-i18n="sym_x">Отражать по X</span></label>
+      <label><input type="checkbox" id="symY"> <span data-i18n="sym_y">Отражать по Y</span></label>
+    </div>
+
+    <h3 data-i18n="background_grid">Фон и сетка</h3>
+    <div class="options-block">
+      <label>
+        <span data-i18n="theme">Тема:</span>
+        <select id="checkerTheme">
+          <option value="light" selected data-i18n="theme_light">Светлая</option>
+          <option value="dark" data-i18n="theme_dark">Тёмная</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="gridToggle"> <span data-i18n="show_grid">Показывать сетку</span></label>
+    </div>
+
+    <details class="hotkeys">
+      <summary data-i18n="hotkeys">Горячие клавиши</summary>
+      <div class="info" id="hotkeysInfo"></div>
+    </details>
+
+  </div>
+
+<script>
+(() => {
+  // ====================== ЯЗЫКИ (I18N) ======================
+  const I18N = {
+    ru: {
+      title: 'Пиксель-арт редактор',
+      lang_label: 'Язык',
+      tool_pencil: 'Карандаш (B)', tool_eraser: 'Ластик (E)', tool_fill: 'Заливка (G)',
+      tool_picker: 'Пипетка (I)', tool_line: 'Линия (L)', tool_rect: 'Прямоугольник (R)',
+      tool_rectfill: 'Залитый прямоугольник', tool_circle: 'Круг (C)', tool_circlefill: 'Залитый круг',
+      tool_move: 'Перемещение (M)', tool_select: 'Выделение (S)',
+      size: 'Размер:', apply: 'Применить', zoom: 'Зум:',
+      undo: '↶ Отменить', redo: '↷ Повторить', clear: '🗑 Очистить',
+      export: '💾 Скачать PNG', import: '📂 Импорт',
+      brush_size: 'Размер кисти', clipboard: 'Буфер обмена',
+      clipboard_empty: 'Пусто. Выдели область и нажми Ctrl+C',
+      paste: '📥 Вставить', clear_all: '🧹 Очистить всё',
+      color: 'Цвет', swap: '⇄ Поменять FG/BG (X)', palette: 'Палитра',
+      transforms: 'Трансформации', rot_cw: '↻ 90°', rot_ccw: '↺ 90°',
+      flip_h: '↔ Отразить', flip_v: '↕ Отразить',
+      symmetry: 'Симметрия', sym_x: 'Отражать по X', sym_y: 'Отражать по Y',
+      background_grid: 'Фон и сетка', theme: 'Тема:', theme_light: 'Светлая', theme_dark: 'Тёмная',
+      show_grid: 'Показывать сетку', hotkeys: 'Горячие клавиши',
+      clip_name: 'Копия', del: 'Удалить',
+      confirm_clear_clip: 'Очистить весь буфер обмена?',
+      hotkeys_info: `
+        <kbd>B</kbd>/<kbd>И</kbd> карандаш · <kbd>E</kbd>/<kbd>У</kbd> ластик<br>
+        <kbd>G</kbd>/<kbd>П</kbd> заливка · <kbd>I</kbd>/<kbd>Ш</kbd> пипетка<br>
+        <kbd>L</kbd>/<kbd>Д</kbd> линия · <kbd>R</kbd>/<kbd>К</kbd> прямоугольник<br>
+        <kbd>C</kbd>/<kbd>С</kbd> круг · <kbd>M</kbd>/<kbd>Ь</kbd> перемещение<br>
+        <kbd>S</kbd>/<kbd>Ы</kbd> выделение · <kbd>X</kbd>/<kbd>Ч</kbd> смена FG/BG<br>
+        <kbd>[</kbd>/<kbd>Х</kbd> -кисть · <kbd>]</kbd>/<kbd>Ъ</kbd> +кисть<br><br>
+        <b>Выделение:</b><br>
+        Драг — новое выделение<br>
+        <kbd>Shift</kbd>+драг — добавить<br>
+        <kbd>Alt</kbd>+драг — вычесть<br>
+        Драг внутри — двигать пиксели<br>
+        <kbd>Ctrl+A</kbd> выделить всё · <kbd>Ctrl+D</kbd> снять<br><br>
+        <kbd>Ctrl+C/V/X</kbd> копир/встав/вырез<br>
+        <kbd>Delete</kbd> удалить выделенное<br>
+        <kbd>←↑↓→</kbd> сдвиг (Shift — 10px)<br>
+        <kbd>Ctrl+Z/Y</kbd> отмена/повтор<br>
+        <kbd>Ctrl+S</kbd> сохранить PNG`
+    },
+    en: {
+      title: 'Pixel Art Editor',
+      lang_label: 'Language',
+      tool_pencil: 'Pencil (B)', tool_eraser: 'Eraser (E)', tool_fill: 'Fill (G)',
+      tool_picker: 'Color picker (I)', tool_line: 'Line (L)', tool_rect: 'Rectangle (R)',
+      tool_rectfill: 'Filled rectangle', tool_circle: 'Circle (C)', tool_circlefill: 'Filled circle',
+      tool_move: 'Move (M)', tool_select: 'Select (S)',
+      size: 'Size:', apply: 'Apply', zoom: 'Zoom:',
+      undo: '↶ Undo', redo: '↷ Redo', clear: '🗑 Clear',
+      export: '💾 Save PNG', import: '📂 Import',
+      brush_size: 'Brush size', clipboard: 'Clipboard',
+      clipboard_empty: 'Empty. Select an area and press Ctrl+C',
+      paste: '📥 Paste', clear_all: '🧹 Clear all',
+      color: 'Color', swap: '⇄ Swap FG/BG (X)', palette: 'Palette',
+      transforms: 'Transforms', rot_cw: '↻ 90°', rot_ccw: '↺ 90°',
+      flip_h: '↔ Flip H', flip_v: '↕ Flip V',
+      symmetry: 'Symmetry', sym_x: 'Mirror X', sym_y: 'Mirror Y',
+      background_grid: 'Background & grid', theme: 'Theme:', theme_light: 'Light', theme_dark: 'Dark',
+      show_grid: 'Show grid', hotkeys: 'Hotkeys',
+      clip_name: 'Copy', del: 'Delete',
+      confirm_clear_clip: 'Clear entire clipboard?',
+      hotkeys_info: `
+        <kbd>B</kbd> pencil · <kbd>E</kbd> eraser<br>
+        <kbd>G</kbd> fill · <kbd>I</kbd> picker<br>
+        <kbd>L</kbd> line · <kbd>R</kbd> rectangle<br>
+        <kbd>C</kbd> circle · <kbd>M</kbd> move<br>
+        <kbd>S</kbd> select · <kbd>X</kbd> swap FG/BG<br>
+        <kbd>[</kbd> -brush · <kbd>]</kbd> +brush<br><br>
+        <b>Selection:</b><br>
+        Drag — new selection<br>
+        <kbd>Shift</kbd>+drag — add<br>
+        <kbd>Alt</kbd>+drag — subtract<br>
+        Drag inside — move pixels<br>
+        <kbd>Ctrl+A</kbd> select all · <kbd>Ctrl+D</kbd> deselect<br><br>
+        <kbd>Ctrl+C/V/X</kbd> copy/paste/cut<br>
+        <kbd>Delete</kbd> delete selected<br>
+        <kbd>←↑↓→</kbd> shift (Shift — 10px)<br>
+        <kbd>Ctrl+Z/Y</kbd> undo/redo<br>
+        <kbd>Ctrl+S</kbd> save PNG`
+    },
+    uk: {
+      title: 'Піксель-арт редактор',
+      lang_label: 'Мова',
+      tool_pencil: 'Олівець (B)', tool_eraser: 'Гумка (E)', tool_fill: 'Заливка (G)',
+      tool_picker: 'Піпетка (I)', tool_line: 'Лінія (L)', tool_rect: 'Прямокутник (R)',
+      tool_rectfill: 'Заповнений прямокутник', tool_circle: 'Коло (C)', tool_circlefill: 'Заповнене коло',
+      tool_move: 'Переміщення (M)', tool_select: 'Виділення (S)',
+      size: 'Розмір:', apply: 'Застосувати', zoom: 'Зум:',
+      undo: '↶ Скасувати', redo: '↷ Повторити', clear: '🗑 Очистити',
+      export: '💾 Зберегти PNG', import: '📂 Імпорт',
+      brush_size: 'Розмір пензля', clipboard: 'Буфер обміну',
+      clipboard_empty: 'Порожньо. Виділи область і натисни Ctrl+C',
+      paste: '📥 Вставити', clear_all: '🧹 Очистити все',
+      color: 'Колір', swap: '⇄ Поміняти FG/BG (X)', palette: 'Палітра',
+      transforms: 'Трансформації', rot_cw: '↻ 90°', rot_ccw: '↺ 90°',
+      flip_h: '↔ Відобразити', flip_v: '↕ Відобразити',
+      symmetry: 'Симетрія', sym_x: 'Відображати по X', sym_y: 'Відображати по Y',
+      background_grid: 'Фон і сітка', theme: 'Тема:', theme_light: 'Світла', theme_dark: 'Темна',
+      show_grid: 'Показувати сітку', hotkeys: 'Гарячі клавіші',
+      clip_name: 'Копія', del: 'Видалити',
+      confirm_clear_clip: 'Очистити весь буфер обміну?',
+      hotkeys_info: `
+        <kbd>B</kbd> олівець · <kbd>E</kbd> гумка<br>
+        <kbd>G</kbd> заливка · <kbd>I</kbd> піпетка<br>
+        <kbd>L</kbd> лінія · <kbd>R</kbd> прямокутник<br>
+        <kbd>C</kbd> коло · <kbd>M</kbd> переміщення<br>
+        <kbd>S</kbd> виділення · <kbd>X</kbd> зміна FG/BG<br>
+        <kbd>[</kbd> -пензель · <kbd>]</kbd> +пензель<br><br>
+        <b>Виділення:</b><br>
+        Драг — нове виділення<br>
+        <kbd>Shift</kbd>+драг — додати<br>
+        <kbd>Alt</kbd>+драг — відняти<br>
+        Драг всередині — рухати пікселі<br>
+        <kbd>Ctrl+A</kbd> виділити все · <kbd>Ctrl+D</kbd> зняти<br><br>
+        <kbd>Ctrl+C/V/X</kbd> копіювати/вставити/вирізати<br>
+        <kbd>Delete</kbd> видалити виділене<br>
+        <kbd>←↑↓→</kbd> зсув (Shift — 10px)<br>
+        <kbd>Ctrl+Z/Y</kbd> скасувати/повторити<br>
+        <kbd>Ctrl+S</kbd> зберегти PNG`
+    },
+    de: {
+      title: 'Pixel-Art-Editor',
+      lang_label: 'Sprache',
+      tool_pencil: 'Stift (B)', tool_eraser: 'Radierer (E)', tool_fill: 'Füllen (G)',
+      tool_picker: 'Pipette (I)', tool_line: 'Linie (L)', tool_rect: 'Rechteck (R)',
+      tool_rectfill: 'Gefülltes Rechteck', tool_circle: 'Kreis (C)', tool_circlefill: 'Gefüllter Kreis',
+      tool_move: 'Verschieben (M)', tool_select: 'Auswahl (S)',
+      size: 'Größe:', apply: 'Anwenden', zoom: 'Zoom:',
+      undo: '↶ Rückgängig', redo: '↷ Wiederholen', clear: '🗑 Löschen',
+      export: '💾 PNG speichern', import: '📂 Import',
+      brush_size: 'Pinselgröße', clipboard: 'Zwischenablage',
+      clipboard_empty: 'Leer. Wähle einen Bereich und drücke Strg+C',
+      paste: '📥 Einfügen', clear_all: '🧹 Alles löschen',
+      color: 'Farbe', swap: '⇄ FG/BG tauschen (X)', palette: 'Palette',
+      transforms: 'Transformationen', rot_cw: '↻ 90°', rot_ccw: '↺ 90°',
+      flip_h: '↔ Spiegeln H', flip_v: '↕ Spiegeln V',
+      symmetry: 'Symmetrie', sym_x: 'Spiegeln X', sym_y: 'Spiegeln Y',
+      background_grid: 'Hintergrund & Raster', theme: 'Thema:', theme_light: 'Hell', theme_dark: 'Dunkel',
+      show_grid: 'Raster anzeigen', hotkeys: 'Tastenkürzel',
+      clip_name: 'Kopie', del: 'Löschen',
+      confirm_clear_clip: 'Gesamte Zwischenablage löschen?',
+      hotkeys_info: `
+        <kbd>B</kbd> Stift · <kbd>E</kbd> Radierer<br>
+        <kbd>G</kbd> Füllen · <kbd>I</kbd> Pipette<br>
+        <kbd>L</kbd> Linie · <kbd>R</kbd> Rechteck<br>
+        <kbd>C</kbd> Kreis · <kbd>M</kbd> Verschieben<br>
+        <kbd>S</kbd> Auswahl · <kbd>X</kbd> FG/BG tauschen<br>
+        <kbd>[</kbd> -Pinsel · <kbd>]</kbd> +Pinsel<br><br>
+        <b>Auswahl:</b><br>
+        Ziehen — neue Auswahl<br>
+        <kbd>Shift</kbd>+Ziehen — hinzufügen<br>
+        <kbd>Alt</kbd>+Ziehen — entfernen<br>
+        Innen ziehen — Pixel verschieben<br>
+        <kbd>Strg+A</kbd> alles · <kbd>Strg+D</kbd> aufheben<br><br>
+        <kbd>Strg+C/V/X</kbd> kopieren/einfügen/ausschneiden<br>
+        <kbd>Entf</kbd> Auswahl löschen<br>
+        <kbd>←↑↓→</kbd> verschieben (Shift — 10px)<br>
+        <kbd>Strg+Z/Y</kbd> rückgängig/wiederholen<br>
+        <kbd>Strg+S</kbd> PNG speichern`
+    },
+    es: {
+      title: 'Editor de Pixel Art',
+      lang_label: 'Idioma',
+      tool_pencil: 'Lápiz (B)', tool_eraser: 'Borrador (E)', tool_fill: 'Relleno (G)',
+      tool_picker: 'Cuentagotas (I)', tool_line: 'Línea (L)', tool_rect: 'Rectángulo (R)',
+      tool_rectfill: 'Rectángulo relleno', tool_circle: 'Círculo (C)', tool_circlefill: 'Círculo relleno',
+      tool_move: 'Mover (M)', tool_select: 'Selección (S)',
+      size: 'Tamaño:', apply: 'Aplicar', zoom: 'Zoom:',
+      undo: '↶ Deshacer', redo: '↷ Rehacer', clear: '🗑 Limpiar',
+      export: '💾 Guardar PNG', import: '📂 Importar',
+      brush_size: 'Tamaño del pincel', clipboard: 'Portapapeles',
+      clipboard_empty: 'Vacío. Selecciona un área y pulsa Ctrl+C',
+      paste: '📥 Pegar', clear_all: '🧹 Limpiar todo',
+      color: 'Color', swap: '⇄ Cambiar FG/BG (X)', palette: 'Paleta',
+      transforms: 'Transformaciones', rot_cw: '↻ 90°', rot_ccw: '↺ 90°',
+      flip_h: '↔ Voltear H', flip_v: '↕ Voltear V',
+      symmetry: 'Simetría', sym_x: 'Espejo X', sym_y: 'Espejo Y',
+      background_grid: 'Fondo y cuadrícula', theme: 'Tema:', theme_light: 'Claro', theme_dark: 'Oscuro',
+      show_grid: 'Mostrar cuadrícula', hotkeys: 'Atajos',
+      clip_name: 'Copia', del: 'Eliminar',
+      confirm_clear_clip: '¿Limpiar todo el portapapeles?',
+      hotkeys_info: `
+        <kbd>B</kbd> lápiz · <kbd>E</kbd> borrador<br>
+        <kbd>G</kbd> relleno · <kbd>I</kbd> cuentagotas<br>
+        <kbd>L</kbd> línea · <kbd>R</kbd> rectángulo<br>
+        <kbd>C</kbd> círculo · <kbd>M</kbd> mover<br>
+        <kbd>S</kbd> selección · <kbd>X</kbd> cambiar FG/BG<br>
+        <kbd>[</kbd> -pincel · <kbd>]</kbd> +pincel<br><br>
+        <b>Selección:</b><br>
+        Arrastrar — nueva selección<br>
+        <kbd>Shift</kbd>+arrastrar — añadir<br>
+        <kbd>Alt</kbd>+arrastrar — quitar<br>
+        Arrastrar dentro — mover píxeles<br>
+        <kbd>Ctrl+A</kbd> todo · <kbd>Ctrl+D</kbd> deseleccionar<br><br>
+        <kbd>Ctrl+C/V/X</kbd> copiar/pegar/cortar<br>
+        <kbd>Supr</kbd> borrar selección<br>
+        <kbd>←↑↓→</kbd> mover (Shift — 10px)<br>
+        <kbd>Ctrl+Z/Y</kbd> deshacer/rehacer<br>
+        <kbd>Ctrl+S</kbd> guardar PNG`
+    },
+    fr: {
+      title: 'Éditeur de Pixel Art',
+      lang_label: 'Langue',
+      tool_pencil: 'Crayon (B)', tool_eraser: 'Gomme (E)', tool_fill: 'Remplissage (G)',
+      tool_picker: 'Pipette (I)', tool_line: 'Ligne (L)', tool_rect: 'Rectangle (R)',
+      tool_rectfill: 'Rectangle rempli', tool_circle: 'Cercle (C)', tool_circlefill: 'Cercle rempli',
+      tool_move: 'Déplacer (M)', tool_select: 'Sélection (S)',
+      size: 'Taille:', apply: 'Appliquer', zoom: 'Zoom:',
+      undo: '↶ Annuler', redo: '↷ Rétablir', clear: '🗑 Effacer',
+      export: '💾 Enregistrer PNG', import: '📂 Importer',
+      brush_size: 'Taille du pinceau', clipboard: 'Presse-papiers',
+      clipboard_empty: 'Vide. Sélectionnez une zone et appuyez sur Ctrl+C',
+      paste: '📥 Coller', clear_all: '🧹 Tout effacer',
+      color: 'Couleur', swap: '⇄ Échanger FG/BG (X)', palette: 'Palette',
+      transforms: 'Transformations', rot_cw: '↻ 90°', rot_ccw: '↺ 90°',
+      flip_h: '↔ Miroir H', flip_v: '↕ Miroir V',
+      symmetry: 'Symétrie', sym_x: 'Miroir X', sym_y: 'Miroir Y',
+      background_grid: 'Fond et grille', theme: 'Thème:', theme_light: 'Clair', theme_dark: 'Sombre',
+      show_grid: 'Afficher la grille', hotkeys: 'Raccourcis',
+      clip_name: 'Copie', del: 'Supprimer',
+      confirm_clear_clip: 'Effacer tout le presse-papiers ?',
+      hotkeys_info: `
+        <kbd>B</kbd> crayon · <kbd>E</kbd> gomme<br>
+        <kbd>G</kbd> remplissage · <kbd>I</kbd> pipette<br>
+        <kbd>L</kbd> ligne · <kbd>R</kbd> rectangle<br>
+        <kbd>C</kbd> cercle · <kbd>M</kbd> déplacer<br>
+        <kbd>S</kbd> sélection · <kbd>X</kbd> échanger FG/BG<br>
+        <kbd>[</kbd> -pinceau · <kbd>]</kbd> +pinceau<br><br>
+        <b>Sélection :</b><br>
+        Glisser — nouvelle sélection<br>
+        <kbd>Shift</kbd>+glisser — ajouter<br>
+        <kbd>Alt</kbd>+glisser — soustraire<br>
+        Glisser à l'intérieur — déplacer les pixels<br>
+        <kbd>Ctrl+A</kbd> tout · <kbd>Ctrl+D</kbd> désélectionner<br><br>
+        <kbd>Ctrl+C/V/X</kbd> copier/coller/couper<br>
+        <kbd>Suppr</kbd> supprimer la sélection<br>
+        <kbd>←↑↓→</kbd> décaler (Shift — 10px)<br>
+        <kbd>Ctrl+Z/Y</kbd> annuler/rétablir<br>
+        <kbd>Ctrl+S</kbd> enregistrer PNG`
+    },
+    ja: {
+      title: 'ピクセルアートエディタ',
+      lang_label: '言語',
+      tool_pencil: '鉛筆 (B)', tool_eraser: '消しゴム (E)', tool_fill: '塗りつぶし (G)',
+      tool_picker: 'スポイト (I)', tool_line: '直線 (L)', tool_rect: '四角形 (R)',
+      tool_rectfill: '塗りつぶし四角形', tool_circle: '円 (C)', tool_circlefill: '塗りつぶし円',
+      tool_move: '移動 (M)', tool_select: '選択 (S)',
+      size: 'サイズ:', apply: '適用', zoom: 'ズーム:',
+      undo: '↶ 元に戻す', redo: '↷ やり直す', clear: '🗑 クリア',
+      export: '💾 PNG保存', import: '📂 インポート',
+      brush_size: 'ブラシサイズ', clipboard: 'クリップボード',
+      clipboard_empty: '空です。範囲を選択してCtrl+Cを押してください',
+      paste: '📥 貼り付け', clear_all: '🧹 すべてクリア',
+      color: '色', swap: '⇄ FG/BGを交換 (X)', palette: 'パレット',
+      transforms: '変形', rot_cw: '↻ 90°', rot_ccw: '↺ 90°',
+      flip_h: '↔ 左右反転', flip_v: '↕ 上下反転',
+      symmetry: '対称', sym_x: 'X対称', sym_y: 'Y対称',
+      background_grid: '背景とグリッド', theme: 'テーマ:', theme_light: 'ライト', theme_dark: 'ダーク',
+      show_grid: 'グリッド表示', hotkeys: 'ショートカット',
+      clip_name: 'コピー', del: '削除',
+      confirm_clear_clip: 'クリップボードをすべてクリアしますか？',
+      hotkeys_info: `
+        <kbd>B</kbd> 鉛筆 · <kbd>E</kbd> 消しゴム<br>
+        <kbd>G</kbd> 塗りつぶし · <kbd>I</kbd> スポイト<br>
+        <kbd>L</kbd> 直線 · <kbd>R</kbd> 四角形<br>
+        <kbd>C</kbd> 円 · <kbd>M</kbd> 移動<br>
+        <kbd>S</kbd> 選択 · <kbd>X</kbd> FG/BG交換<br>
+        <kbd>[</kbd> -ブラシ · <kbd>]</kbd> +ブラシ<br><br>
+        <b>選択:</b><br>
+        ドラッグ — 新規選択<br>
+        <kbd>Shift</kbd>+ドラッグ — 追加<br>
+        <kbd>Alt</kbd>+ドラッグ — 減算<br>
+        内側ドラッグ — ピクセルを移動<br>
+        <kbd>Ctrl+A</kbd> 全選択 · <kbd>Ctrl+D</kbd> 選択解除<br><br>
+        <kbd>Ctrl+C/V/X</kbd> コピー/貼付/切り取り<br>
+        <kbd>Delete</kbd> 選択範囲を削除<br>
+        <kbd>←↑↓→</kbd> 移動 (Shift — 10px)<br>
+        <kbd>Ctrl+Z/Y</kbd> 元に戻す/やり直す<br>
+        <kbd>Ctrl+S</kbd> PNG保存`
+    },
+    zh: {
+      title: '像素画编辑器',
+      lang_label: '语言',
+      tool_pencil: '铅笔 (B)', tool_eraser: '橡皮擦 (E)', tool_fill: '填充 (G)',
+      tool_picker: '取色器 (I)', tool_line: '直线 (L)', tool_rect: '矩形 (R)',
+      tool_rectfill: '填充矩形', tool_circle: '圆 (C)', tool_circlefill: '填充圆',
+      tool_move: '移动 (M)', tool_select: '选择 (S)',
+      size: '尺寸:', apply: '应用', zoom: '缩放:',
+      undo: '↶ 撤销', redo: '↷ 重做', clear: '🗑 清空',
+      export: '💾 保存 PNG', import: '📂 导入',
+      brush_size: '画笔大小', clipboard: '剪贴板',
+      clipboard_empty: '为空。选择区域并按 Ctrl+C',
+      paste: '📥 粘贴', clear_all: '🧹 全部清空',
+      color: '颜色', swap: '⇄ 交换 FG/BG (X)', palette: '调色板',
+      transforms: '变换', rot_cw: '↻ 90°', rot_ccw: '↺ 90°',
+      flip_h: '↔ 水平翻转', flip_v: '↕ 垂直翻转',
+      symmetry: '对称', sym_x: 'X 对称', sym_y: 'Y 对称',
+      background_grid: '背景与网格', theme: '主题:', theme_light: '浅色', theme_dark: '深色',
+      show_grid: '显示网格', hotkeys: '快捷键',
+      clip_name: '副本', del: '删除',
+      confirm_clear_clip: '清空整个剪贴板？',
+      hotkeys_info: `
+        <kbd>B</kbd> 铅笔 · <kbd>E</kbd> 橡皮擦<br>
+        <kbd>G</kbd> 填充 · <kbd>I</kbd> 取色器<br>
+        <kbd>L</kbd> 直线 · <kbd>R</kbd> 矩形<br>
+        <kbd>C</kbd> 圆 · <kbd>M</kbd> 移动<br>
+        <kbd>S</kbd> 选择 · <kbd>X</kbd> 交换 FG/BG<br>
+        <kbd>[</kbd> 缩小画笔 · <kbd>]</kbd> 放大画笔<br><br>
+        <b>选择:</b><br>
+        拖动 — 新选择<br>
+        <kbd>Shift</kbd>+拖动 — 添加<br>
+        <kbd>Alt</kbd>+拖动 — 减去<br>
+        内部拖动 — 移动像素<br>
+        <kbd>Ctrl+A</kbd> 全选 · <kbd>Ctrl+D</kbd> 取消选择<br><br>
+        <kbd>Ctrl+C/V/X</kbd> 复制/粘贴/剪切<br>
+        <kbd>Delete</kbd> 删除选区<br>
+        <kbd>←↑↓→</kbd> 移动 (Shift — 10px)<br>
+        <kbd>Ctrl+Z/Y</kbd> 撤销/重做<br>
+        <kbd>Ctrl+S</kbd> 保存 PNG`
+    }
+  };
+
+  const LANG_NAMES = {
+    ru: '🇷🇺 Русский',
+    en: '🇬🇧 English',
+    uk: '🇺🇦 Українська',
+    de: '🇩🇪 Deutsch',
+    es: '🇪🇸 Español',
+    fr: '🇫🇷 Français',
+    ja: '🇯🇵 日本語',
+    zh: '🇨🇳 中文'
+  };
+
+  let currentLang = 'ru';
+
+  function detectLang() {
+    const saved = localStorage.getItem('pixel-editor-lang');
+    if (saved && I18N[saved]) return saved;
+
+    const nav = (navigator.language || 'en').toLowerCase();
+    if (nav.startsWith('ru')) return 'ru';
+    if (nav.startsWith('uk')) return 'uk';
+    if (nav.startsWith('de')) return 'de';
+    if (nav.startsWith('es')) return 'es';
+    if (nav.startsWith('fr')) return 'fr';
+    if (nav.startsWith('ja')) return 'ja';
+    if (nav.startsWith('zh')) return 'zh';
+    return 'en';
+  }
+
+  function t(key) {
+    return (I18N[currentLang] && I18N[currentLang][key]) || (I18N.en[key]) || key;
+  }
+
+  function applyTranslations() {
+    document.documentElement.lang = currentLang;
+    document.title = t('title');
+
+    // data-i18n → textContent
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.dataset.i18n;
+      const val = t(key);
+      if (val) el.textContent = val;
+    });
+
+    // data-i18n-title → title-атрибут
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+      const key = el.dataset.i18nTitle;
+      const val = t(key);
+      if (val) el.title = val;
+    });
+
+    // Info про горячие клавиши (HTML)
+    const hk = document.getElementById('hotkeysInfo');
+    if (hk) hk.innerHTML = t('hotkeys_info');
+
+    // Перерисовываем буфер (там есть название "Копия N")
+    renderClipboardPanel();
+
+    // Языковой селектор — обновляем выбранное
+    const sel = document.getElementById('langSelect');
+    if (sel) sel.value = currentLang;
+  }
+
+  function buildLangSelector() {
+    const sel = document.getElementById('langSelect');
+    sel.innerHTML = '';
+    Object.keys(I18N).forEach(code => {
+      const opt = document.createElement('option');
+      opt.value = code;
+      opt.textContent = LANG_NAMES[code] || code;
+      sel.appendChild(opt);
+    });
+    sel.value = currentLang;
+    sel.onchange = () => {
+      currentLang = sel.value;
+      localStorage.setItem('pixel-editor-lang', currentLang);
+      applyTranslations();
+    };
+  }
+
+  // ====================== ОСНОВНОЙ КОД ======================
+  const canvas = document.getElementById('inputCanvas');
+  const drawCanvas = document.getElementById('drawCanvas');
+  const ctx = drawCanvas.getContext('2d', { willReadFrequently: true });
+  const container = document.getElementById('canvasContainer');
+  const checkerCanvas = document.getElementById('checkerCanvas');
+  const checkerCtx = checkerCanvas.getContext('2d');
+  const selRects = document.getElementById('selRects');
+  const floatCanvas = document.getElementById('floatCanvas');
+  const floatCtx = floatCanvas.getContext('2d');
+  const gridOverlay = document.getElementById('gridOverlay');
+
+  let W = 32, H = 32;
+  let zoom = 16;
+  let tool = 'pencil';
+  let fgColor = '#000000';
+  let bgColor = '#ffffff';
+  let drawing = false;
+  let currentColor = '#000000';
+  let brushSize = 1;
+  let checkerTheme = 'light';
+  let gridOn = false;
+  let symX = false, symY = false;
+  let startX = 0, startY = 0;
+  let lastX = null, lastY = null;
+
+  const undoStack = [];
+  const redoStack = [];
+  const MAX_HISTORY = 50;
+
+  let regions = [];
+  let dragRegion = null;
+  let dragMode = 'replace';
+  let floating = null;
+  let floatingDrag = null;
+  let movingSelection = false;
+  let moveStart = null;
+  let moveSnapshot = null;
+  let moveRegionsSnapshot = null;
+  let moveOffset = { dx: 0, dy: 0 };
+  let layerMoveSnapshot = null;
+  let layerMoveStartX = 0, layerMoveStartY = 0;
+  let shapeSnap = null;
+
+  let clipboardItems = [];
+  let activeClipboardIdx = -1;
+  let nextClipId = 1;
+  const MAX_CLIP_ITEMS = 40;
+
+  // ===== КИСТЬ =====
+  function setBrushSize(n) {
+    n = Math.max(1, Math.min(8, n | 0));
+    brushSize = n;
+    document.getElementById('brushSize').value = n;
+    document.getElementById('brushSizeVal').textContent = n;
+    document.querySelectorAll('#brushPresets button').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.size) === n);
+    });
+    const dot = document.getElementById('brushDot');
+    const previewPx = 2 + n * 3;
+    dot.style.width  = previewPx + 'px';
+    dot.style.height = previewPx + 'px';
+  }
+
+  function brushOffsets() {
+    const off = [];
+    const n = brushSize;
+    const half = Math.floor((n - 1) / 2);
+    for (let dy = 0; dy < n; dy++) {
+      for (let dx = 0; dx < n; dx++) {
+        off.push([dx - half, dy - half]);
+      }
+    }
+    return off;
+  }
+
+  // ===== ШАХМАТКА =====
+  function buildCheckerCanvas() {
+    checkerCanvas.width  = W;
+    checkerCanvas.height = H;
+    const colors = checkerTheme === 'dark'
+      ? ['#2a2a2a', '#1e1e1e']
+      : ['#ffffff', '#cccccc'];
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        checkerCtx.fillStyle = ((x + y) & 1) ? colors[1] : colors[0];
+        checkerCtx.fillRect(x, y, 1, 1);
+      }
+    }
+    checkerCanvas.style.width  = (W * zoom) + 'px';
+    checkerCanvas.style.height = (H * zoom) + 'px';
+  }
+
+  function applyZoom() {
+    const wPx = (W * zoom) + 'px';
+    const hPx = (H * zoom) + 'px';
+
+    checkerCanvas.style.width  = wPx;
+    checkerCanvas.style.height = hPx;
+    drawCanvas.style.width  = wPx;
+    drawCanvas.style.height = hPx;
+    canvas.style.width  = wPx;
+    canvas.style.height = hPx;
+    container.style.width  = wPx;
+    container.style.height = hPx;
+
+    buildCheckerCanvas();
+    updateGridOverlay();
+    renderSelectionBoxes();
+    updateFloatingPosition();
+  }
+
+  function updateGridOverlay() {
+    if (!gridOn) { gridOverlay.style.display = 'none'; return; }
+    gridOverlay.style.display = 'block';
+    gridOverlay.style.width  = (W * zoom) + 'px';
+    gridOverlay.style.height = (H * zoom) + 'px';
+    gridOverlay.style.backgroundImage = `
+      linear-gradient(to right, rgba(0,0,0,0.25) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0,0,0,0.25) 1px, transparent 1px)
+    `;
+    gridOverlay.style.backgroundSize = `${zoom}px ${zoom}px`;
+  }
+
+  // ===== ВЫДЕЛЕНИЕ =====
+  function isSelected(x, y) {
+    if (regions.length === 0) return false;
+    for (const r of regions) {
+      if (x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h) return true;
+    }
+    return false;
+  }
+
+  function hasSelection() { return regions.length > 0; }
+
+  function clearSelection() {
+    regions = [];
+    renderSelectionBoxes();
+  }
+
+  function renderSelectionBoxes() {
+    selRects.innerHTML = '';
+    if (regions.length === 0) return;
+    for (const r of regions) {
+      const d = document.createElement('div');
+      d.className = 'sel-box';
+      d.style.left   = (r.x * zoom) + 'px';
+      d.style.top    = (r.y * zoom) + 'px';
+      d.style.width  = (r.w * zoom) + 'px';
+      d.style.height = (r.h * zoom) + 'px';
+      selRects.appendChild(d);
+    }
+  }
+
+  function normalizeRect(x0, y0, x1, y1) {
+    const x = Math.min(x0, x1);
+    const y = Math.min(y0, y1);
+    const w = Math.abs(x1 - x0) + 1;
+    const h = Math.abs(y1 - y0) + 1;
+    return {
+      x: Math.max(0, x), y: Math.max(0, y),
+      w: Math.min(W - x, w), h: Math.min(H - y, h)
+    };
+  }
+
+  function subtractRect(base, cut) {
+    const bx0 = base.x, by0 = base.y, bx1 = base.x + base.w, by1 = base.y + base.h;
+    const cx0 = cut.x,  cy0 = cut.y,  cx1 = cut.x + cut.w,  cy1 = cut.y + cut.h;
+    if (bx1 <= cx0 || bx0 >= cx1 || by1 <= cy0 || by0 >= cy1) return [base];
+    const result = [];
+    if (by0 < cy0) result.push({ x: bx0, y: by0, w: bx1 - bx0, h: cy0 - by0 });
+    if (cy1 < by1) result.push({ x: bx0, y: cy1, w: bx1 - bx0, h: by1 - cy1 });
+    const midY0 = Math.max(by0, cy0);
+    const midY1 = Math.min(by1, cy1);
+    if (bx0 < cx0 && midY1 > midY0) result.push({ x: bx0, y: midY0, w: cx0 - bx0, h: midY1 - midY0 });
+    if (cx1 < bx1 && midY1 > midY0) result.push({ x: cx1, y: midY0, w: bx1 - cx1, h: midY1 - midY0 });
+    return result.filter(r => r.w > 0 && r.h > 0);
+  }
+
+  function applyRectOp(rect, mode) {
+    if (mode === 'replace') regions = [rect];
+    else if (mode === 'add') regions.push(rect);
+    else if (mode === 'subtract') {
+      const next = [];
+      for (const r of regions) next.push(...subtractRect(r, rect));
+      regions = next;
+    }
+    renderSelectionBoxes();
+  }
+
+  // ===== ПИКСЕЛИ =====
+  function getPixelColor(x, y) {
+    const d = ctx.getImageData(x, y, 1, 1).data;
+    return { r: d[0], g: d[1], b: d[2], a: d[3] };
+  }
+
+  function setPixelBrush(x, y, color) {
+    const offs = brushOffsets();
+    for (const [dx, dy] of offs) {
+      paintPixel(x + dx, y + dy, color);
+      if (symX) paintPixel(W - 1 - (x + dx), y + dy, color);
+      if (symY) paintPixel(x + dx, H - 1 - (y + dy), color);
+      if (symX && symY) paintPixel(W - 1 - (x + dx), H - 1 - (y + dy), color);
+    }
+  }
+
+  function paintPixel(x, y, color) {
+    if (x < 0 || y < 0 || x >= W || y >= H) return;
+    if (hasSelection() && !isSelected(x, y)) return;
+    if (color === null) ctx.clearRect(x, y, 1, 1);
+    else { ctx.fillStyle = color; ctx.fillRect(x, y, 1, 1); }
+  }
+
+  function hexToRgba(hex) {
+    return {
+      r: parseInt(hex.slice(1,3),16),
+      g: parseInt(hex.slice(3,5),16),
+      b: parseInt(hex.slice(5,7),16),
+      a: 255
+    };
+  }
+
+  function selectTool(newTool) {
+    tool = newTool;
+    currentColor = (tool === 'eraser') ? null : fgColor;
+    canvas.style.cursor = (tool === 'move') ? 'grab' : 'crosshair';
+  }
+
+  function getMousePos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = W / rect.width;
+    const scaleY = H / rect.height;
+    return {
+      x: Math.floor((e.clientX - rect.left) * scaleX),
+      y: Math.floor((e.clientY - rect.top)  * scaleY)
+    };
+  }
+
+  canvas.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const { x, y } = getMousePos(e);
+
+    if (floating) {
+      if (x >= floating.x && x < floating.x + floating.w &&
+          y >= floating.y && y < floating.y + floating.h) {
+        floatingDrag = { offsetX: x - floating.x, offsetY: y - floating.y };
+        canvas.style.cursor = 'grabbing';
+        return;
+      } else {
+        stampFloating();
+      }
+    }
+
+    if (tool === 'picker') {
+      const c = pickCompositeColor(x, y);
+      if (c) setFgColor(c);
+      return;
+    }
+
+    if (tool === 'select') {
+      if (hasSelection() && isSelected(x, y) && !e.shiftKey && !e.altKey) {
+        startMovingSelectionContent(x, y);
+        return;
+      }
+      dragMode = e.shiftKey ? 'add' : (e.altKey ? 'subtract' : 'replace');
+      startX = x; startY = y; drawing = true;
+      dragRegion = { x, y, w: 1, h: 1 };
+      if (dragMode === 'replace') regions = [dragRegion];
+      else if (dragMode === 'add') regions = [...regions, dragRegion];
+      renderSelectionBoxes();
+      return;
+    }
+
+    pushHistory();
+    drawing = true;
+    startX = x; startY = y; lastX = null; lastY = null;
+
+    if (tool === 'move') {
+      layerMoveSnapshot = ctxSnapshot();
+      layerMoveStartX = x; layerMoveStartY = y;
+      canvas.style.cursor = 'grabbing';
+      return;
+    }
+
+    if (['line','rect','rectfill','circle','circlefill'].includes(tool)) {
+      shapeSnap = ctx.getImageData(0, 0, W, H);
+    } else if (tool === 'fill') {
+      floodFill(x, y, currentColor);
+    } else {
+      setPixelBrush(x, y, currentColor);
+    }
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!drawing && !floatingDrag && !movingSelection) return;
+    const { x, y } = getMousePos(e);
+
+    if (floatingDrag && floating) {
+      floating.x = x - floatingDrag.offsetX;
+      floating.y = y - floatingDrag.offsetY;
+      updateFloatingPosition();
+      return;
+    }
+
+    if (movingSelection) {
+      moveOffset = { dx: x - moveStart.x, dy: y - moveStart.y };
+      renderMovedSelection();
+      return;
+    }
+
+    if (tool === 'select' && drawing) {
+      const r = normalizeRect(startX, startY, x, y);
+      dragRegion = r;
+      if (dragMode === 'replace') regions = [r];
+      else if (dragMode === 'add') regions = [...regions.slice(0, -1), r];
+      renderSelectionBoxes();
+      return;
+    }
+
+    if (tool === 'move') {
+      shiftCanvas(layerMoveSnapshot, x - layerMoveStartX, y - layerMoveStartY);
+      return;
+    }
+
+    if (tool === 'pencil' || tool === 'eraser') {
+      drawPixelLineBrush(lastX ?? x, lastY ?? y, x, y, currentColor);
+      lastX = x; lastY = y;
+    } else if (tool === 'line') {
+      restoreShapeSnap();
+      drawPixelLineBrush(startX, startY, x, y, currentColor);
+    } else if (tool === 'rect' || tool === 'rectfill') {
+      restoreShapeSnap();
+      drawRectBrush(startX, startY, x, y, currentColor, tool === 'rectfill');
+    } else if (tool === 'circle' || tool === 'circlefill') {
+      restoreShapeSnap();
+      drawCircleBrush(startX, startY, x, y, currentColor, tool === 'circlefill');
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (floatingDrag) {
+      floatingDrag = null;
+      canvas.style.cursor = (tool === 'move') ? 'grab' : 'crosshair';
+      return;
+    }
+    if (movingSelection) { finishMovingSelection(); return; }
+
+    if (tool === 'select' && drawing) {
+      drawing = false;
+      if (dragMode === 'subtract') applyRectOp(dragRegion, 'subtract');
+      else if (dragMode === 'replace') {
+        if (dragRegion && dragRegion.w > 0 && dragRegion.h > 0) {
+          regions = [dragRegion]; renderSelectionBoxes();
+        } else { regions = []; renderSelectionBoxes(); }
+      } else if (dragMode === 'add') {
+        if (!dragRegion || dragRegion.w <= 0 || dragRegion.h <= 0) {
+          regions = regions.slice(0, -1); renderSelectionBoxes();
+        }
+      }
+      dragRegion = null;
+      return;
+    }
+
+    if (drawing) {
+      drawing = false; lastX = null; lastY = null;
+      if (tool === 'move') {
+        layerMoveSnapshot = null;
+        canvas.style.cursor = 'grab';
+      }
+    }
+  });
+
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  function startMovingSelectionContent(x, y) {
+    pushHistory();
+    moveSnapshot = ctxSnapshot();
+    moveRegionsSnapshot = regions.map(r => ({ ...r }));
+    moveStart = { x, y };
+    moveOffset = { dx: 0, dy: 0 };
+    movingSelection = true; drawing = true;
+    for (const r of regions) ctx.clearRect(r.x, r.y, r.w, r.h);
+  }
+
+  function renderMovedSelection() {
+    if (!moveSnapshot) return;
+    const { dx, dy } = moveOffset;
+    ctx.putImageData(moveSnapshot, 0, 0);
+    for (const r of moveRegionsSnapshot) ctx.clearRect(r.x, r.y, r.w, r.h);
+
+    const src = moveSnapshot.data;
+    for (const r of moveRegionsSnapshot) {
+      for (let yy = r.y; yy < r.y + r.h; yy++) {
+        for (let xx = r.x; xx < r.x + r.w; xx++) {
+          const si = (yy * W + xx) * 4;
+          const a = src[si + 3];
+          if (a === 0) continue;
+          const nx = xx + dx, ny = yy + dy;
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          ctx.fillStyle = `rgba(${src[si]},${src[si+1]},${src[si+2]},${a/255})`;
+          ctx.fillRect(nx, ny, 1, 1);
+        }
+      }
+    }
+    regions = moveRegionsSnapshot.map(r => ({ x: r.x + dx, y: r.y + dy, w: r.w, h: r.h }));
+    renderSelectionBoxes();
+  }
+
+  function finishMovingSelection() {
+    movingSelection = false; drawing = false;
+    moveSnapshot = null; moveRegionsSnapshot = null;
+    moveStart = null; moveOffset = { dx: 0, dy: 0 };
+  }
+
+  function restoreShapeSnap() { if (shapeSnap) ctx.putImageData(shapeSnap, 0, 0); }
+  function ctxSnapshot() { return ctx.getImageData(0, 0, W, H); }
+
+  function pickCompositeColor(x, y) {
+    if (x < 0 || y < 0 || x >= W || y >= H) return null;
+    const d = ctx.getImageData(x, y, 1, 1).data;
+    if (d[3] === 0) return null;
+    return '#' + [d[0],d[1],d[2]].map(v => v.toString(16).padStart(2,'0')).join('');
+  }
+
+  function shiftCanvas(sourceImageData, dx, dy) {
+    ctx.clearRect(0, 0, W, H);
+    const srcCanvas = document.createElement('canvas');
+    srcCanvas.width = W; srcCanvas.height = H;
+    srcCanvas.getContext('2d').putImageData(sourceImageData, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(srcCanvas, dx, dy);
+  }
+
+  function drawPixelLineBrush(x0, y0, x1, y1, color) {
+    let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    let err = dx + dy;
+    while (true) {
+      setPixelBrush(x0, y0, color);
+      if (x0 === x1 && y0 === y1) break;
+      const e2 = 2 * err;
+      if (e2 >= dy) { err += dy; x0 += sx; }
+      if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+  }
+
+  function drawRectBrush(x0, y0, x1, y1, color, filled) {
+    const xa = Math.min(x0, x1), xb = Math.max(x0, x1);
+    const ya = Math.min(y0, y1), yb = Math.max(y0, y1);
+    if (filled) {
+      for (let y = ya; y <= yb; y++)
+        for (let x = xa; x <= xb; x++)
+          paintPixel(x, y, color);
+      return;
+    }
+    for (let x = xa; x <= xb; x++) { setPixelBrush(x, ya, color); setPixelBrush(x, yb, color); }
+    for (let y = ya; y <= yb; y++) { setPixelBrush(xa, y, color); setPixelBrush(xb, y, color); }
+  }
+
+  function drawCircleBrush(cx, cy, mx, my, color, filled) {
+    const r = Math.round(Math.hypot(mx - cx, my - cy));
+    if (filled) {
+      for (let y = -r; y <= r; y++) {
+        const halfW = Math.floor(Math.sqrt(Math.max(0, r*r - y*y)));
+        for (let x = -halfW; x <= halfW; x++) paintPixel(cx + x, cy + y, color);
+      }
+      return;
+    }
+    let x = r, y = 0, err = 1 - r;
+    while (x >= y) {
+      setPixelBrush(cx + x, cy + y, color);
+      setPixelBrush(cx + y, cy + x, color);
+      setPixelBrush(cx - y, cy + x, color);
+      setPixelBrush(cx - x, cy + y, color);
+      setPixelBrush(cx - x, cy - y, color);
+      setPixelBrush(cx - y, cy - x, color);
+      setPixelBrush(cx + y, cy - x, color);
+      setPixelBrush(cx + x, cy - y, color);
+      y++;
+      if (err < 0) err += 2 * y + 1;
+      else { x--; err += 2 * (y - x) + 1; }
+    }
+  }
+
+  function floodFill(x, y, color) {
+    const target = getPixelColor(x, y);
+    const newRgba = color === null ? { r: 0, g: 0, b: 0, a: 0 } : hexToRgba(color);
+    if (target.r === newRgba.r && target.g === newRgba.g &&
+        target.b === newRgba.b && target.a === newRgba.a) return;
+
+    const stack = [[x, y]];
+    const visited = new Set();
+    while (stack.length) {
+      const [cx, cy] = stack.pop();
+      if (cx < 0 || cy < 0 || cx >= W || cy >= H) continue;
+      const key = cy * W + cx;
+      if (visited.has(key)) continue;
+      visited.add(key);
+      if (hasSelection() && !isSelected(cx, cy)) continue;
+      const c = getPixelColor(cx, cy);
+      if (c.r !== target.r || c.g !== target.g || c.b !== target.b || c.a !== target.a) continue;
+      paintPixel(cx, cy, color);
+      stack.push([cx+1, cy], [cx-1, cy], [cx, cy+1], [cx, cy-1]);
+    }
+  }
+
+  function pushHistory() {
+    undoStack.push(ctx.getImageData(0, 0, W, H));
+    if (undoStack.length > MAX_HISTORY) undoStack.shift();
+    redoStack.length = 0;
+  }
+
+  document.getElementById('undoBtn').onclick = () => {
+    if (!undoStack.length) return;
+    redoStack.push(ctx.getImageData(0, 0, W, H));
+    ctx.putImageData(undoStack.pop(), 0, 0);
+  };
+  document.getElementById('redoBtn').onclick = () => {
+    if (!redoStack.length) return;
+    undoStack.push(ctx.getImageData(0, 0, W, H));
+    ctx.putImageData(redoStack.pop(), 0, 0);
+  };
+
+  document.querySelectorAll('.tool').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.tool').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectTool(btn.dataset.tool);
+    };
+  });
+
+  document.getElementById('brushSize').oninput = e => setBrushSize(parseInt(e.target.value));
+  document.querySelectorAll('#brushPresets button').forEach(b => {
+    b.onclick = () => setBrushSize(parseInt(b.dataset.size));
+  });
+
+  const fgSwatch = document.getElementById('fgSwatch');
+  const bgSwatch = document.getElementById('bgSwatch');
+  const colorPicker = document.getElementById('colorPicker');
+
+  function setFgColor(hex) {
+    fgColor = hex;
+    fgSwatch.style.background = hex;
+    colorPicker.value = hex;
+    if (tool !== 'eraser') currentColor = hex;
+  }
+  function setBgColor(hex) {
+    bgColor = hex;
+    bgSwatch.style.background = hex;
+  }
+
+  colorPicker.oninput = e => setFgColor(e.target.value);
+  fgSwatch.onclick = () => { colorPicker.value = fgColor; colorPicker.click(); };
+  bgSwatch.onclick = () => { colorPicker.value = bgColor; colorPicker.click(); };
+  document.getElementById('swapBtn').onclick = () => {
+    const t = fgColor; setFgColor(bgColor); setBgColor(t);
+  };
+
+  const paletteColors = [
+    '#000000','#1d2b53','#7e2553','#008751','#ab5236','#5f574f','#c2c3c7','#fff1e8',
+    '#ff004d','#ffa300','#ffec27','#00e436','#29adff','#83769c','#ff77a8','#ffccaa',
+    '#ffffff','#cccccc','#999999','#666666','#333333','#111111','#7f7f7f','#eeeeee',
+    '#7f0000','#7f3f00','#7f7f00','#007f00','#007f7f','#00007f','#3f007f','#7f007f'
+  ];
+  const paletteEl = document.getElementById('palette');
+  paletteColors.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'c';
+    d.style.background = c;
+    d.title = c;
+    d.onclick = () => setFgColor(c);
+    paletteEl.appendChild(d);
+  });
+
+  // ===== БУФЕР =====
+  function renderClipboardPanel() {
+    const panel = document.getElementById('clipboardPanel');
+    panel.innerHTML = '';
+
+    if (clipboardItems.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'clipboard-empty';
+      empty.textContent = t('clipboard_empty');
+      panel.appendChild(empty);
+      return;
+    }
+
+    clipboardItems.forEach((item, idx) => {
+      const el = document.createElement('div');
+      el.className = 'clip-item' + (idx === activeClipboardIdx ? ' active' : '');
+
+      const thumb = document.createElement('div');
+      thumb.className = 'thumb';
+      const tCanvas = document.createElement('canvas');
+      tCanvas.width = item.w;
+      tCanvas.height = item.h;
+      const tctx = tCanvas.getContext('2d');
+      tctx.imageSmoothingEnabled = false;
+      tctx.putImageData(item.data, 0, 0);
+      const maxSide = 60;
+      const scale = Math.min(maxSide / item.w, maxSide / item.h, 4);
+      tCanvas.style.width  = Math.max(1, Math.round(item.w * scale)) + 'px';
+      tCanvas.style.height = Math.max(1, Math.round(item.h * scale)) + 'px';
+      thumb.appendChild(tCanvas);
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      const title = document.createElement('div');
+      title.className = 'title';
+      title.textContent = item.name;
+      const dims = document.createElement('div');
+      dims.textContent = `${item.w}×${item.h}`;
+      meta.appendChild(title);
+      meta.appendChild(dims);
+
+      const del = document.createElement('div');
+      del.className = 'del';
+      del.textContent = '🗑';
+      del.title = t('del');
+      del.onclick = (e) => {
+        e.stopPropagation();
+        clipboardItems.splice(idx, 1);
+        if (activeClipboardIdx >= clipboardItems.length) {
+          activeClipboardIdx = clipboardItems.length - 1;
+        }
+        renderClipboardPanel();
+      };
+
+      el.appendChild(thumb);
+      el.appendChild(meta);
+      el.appendChild(del);
+
+      el.onclick = () => {
+        activeClipboardIdx = idx;
+        renderClipboardPanel();
+      };
+      el.ondblclick = () => {
+        activeClipboardIdx = idx;
+        pasteFromClipboard();
+      };
+      panel.appendChild(el);
+    });
+  }
+
+  function addToClipboard(w, h, data) {
+    const name = `${t('clip_name')} ${nextClipId++}`;
+    clipboardItems.unshift({ id: nextClipId, w, h, data, ts: Date.now(), name });
+    while (clipboardItems.length > MAX_CLIP_ITEMS) clipboardItems.pop();
+    activeClipboardIdx = 0;
+    renderClipboardPanel();
+  }
+
+  function clearClipboard() {
+    if (clipboardItems.length === 0) return;
+    if (!confirm(t('confirm_clear_clip'))) return;
+    clipboardItems = [];
+    activeClipboardIdx = -1;
+    renderClipboardPanel();
+  }
+
+  document.getElementById('pasteSelectedBtn').onclick = () => pasteFromClipboard();
+  document.getElementById('clearClipboardBtn').onclick = () => clearClipboard();
+
+  function pasteFromClipboard() {
+    if (clipboardItems.length === 0) return;
+    if (activeClipboardIdx < 0 || activeClipboardIdx >= clipboardItems.length) activeClipboardIdx = 0;
+    const item = clipboardItems[activeClipboardIdx];
+    if (floating) stampFloating();
+    const b = selectionBBox();
+    const px = b ? b.x : Math.max(0, Math.floor((W - item.w) / 2));
+    const py = b ? b.y : Math.max(0, Math.floor((H - item.h) / 2));
+    const dataCopy = new ImageData(new Uint8ClampedArray(item.data.data), item.w, item.h);
+    createFloating(dataCopy, item.w, item.h, px, py);
+  }
+
+  function transformCanvas(type) {
+    pushHistory();
+    const src = ctx.getImageData(0, 0, W, H);
+    const tmp = document.createElement('canvas');
+    tmp.width = W; tmp.height = H;
+    tmp.getContext('2d').putImageData(src, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.imageSmoothingEnabled = false;
+
+    if (type === 'rot90cw' || type === 'rot90ccw') {
+      const newW = H, newH = W;
+      const rotated = document.createElement('canvas');
+      rotated.width = newW; rotated.height = newH;
+      const rctx = rotated.getContext('2d');
+      rctx.imageSmoothingEnabled = false;
+      rctx.translate(newW/2, newH/2);
+      rctx.rotate((type === 'rot90cw' ? 1 : -1) * Math.PI / 2);
+      rctx.drawImage(tmp, -W/2, -H/2);
+      W = newW; H = newH;
+      drawCanvas.width = W; drawCanvas.height = H;
+      canvas.width = W; canvas.height = H;
+      checkerCanvas.width = W; checkerCanvas.height = H;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(rotated, 0, 0);
+      document.getElementById('sizeInput').value = W;
+      document.getElementById('sizeInput2').value = H;
+      clearSelection(); applyZoom();
+      return;
+    }
+    if (type === 'flipH') { ctx.translate(W, 0); ctx.scale(-1, 1); ctx.drawImage(tmp, 0, 0); }
+    else if (type === 'flipV') { ctx.translate(0, H); ctx.scale(1, -1); ctx.drawImage(tmp, 0, 0); }
+  }
+
+  document.getElementById('rot90cw').onclick  = () => transformCanvas('rot90cw');
+  document.getElementById('rot90ccw').onclick = () => transformCanvas('rot90ccw');
+  document.getElementById('flipH').onclick    = () => transformCanvas('flipH');
+  document.getElementById('flipV').onclick    = () => transformCanvas('flipV');
+
+  document.getElementById('symX').onchange = e => symX = e.target.checked;
+  document.getElementById('symY').onchange = e => symY = e.target.checked;
+
+  const zoomEl = document.getElementById('zoom');
+  const zoomVal = document.getElementById('zoomVal');
+  zoomEl.oninput = () => {
+    zoom = parseInt(zoomEl.value);
+    zoomVal.textContent = zoom + 'x';
+    applyZoom();
+  };
+
+  document.getElementById('resizeBtn').onclick = () => {
+    const nw = Math.max(8, Math.min(256, parseInt(document.getElementById('sizeInput').value) || 32));
+    const nh = Math.max(8, Math.min(256, parseInt(document.getElementById('sizeInput2').value) || 32));
+    if (nw === W && nh === H) return;
+    const saved = document.createElement('canvas');
+    saved.width = W; saved.height = H;
+    saved.getContext('2d').drawImage(drawCanvas, 0, 0);
+    W = nw; H = nh;
+    drawCanvas.width = W; drawCanvas.height = H;
+    canvas.width = W; canvas.height = H;
+    checkerCanvas.width = W; checkerCanvas.height = H;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(saved, 0, 0);
+    clearSelection(); applyZoom();
+    undoStack.length = 0; redoStack.length = 0;
+  };
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    if (floating) cancelFloating();
+    pushHistory();
+    if (hasSelection()) {
+      for (const r of regions) ctx.clearRect(r.x, r.y, r.w, r.h);
+    } else {
+      ctx.clearRect(0, 0, W, H);
+    }
+  });
+
+  document.getElementById('exportBtn').onclick = () => {
+    const exp = document.createElement('canvas');
+    exp.width = W; exp.height = H;
+    const ectx = exp.getContext('2d');
+    ectx.imageSmoothingEnabled = false;
+    ectx.drawImage(drawCanvas, 0, 0);
+    if (floating) {
+      const tmp = document.createElement('canvas');
+      tmp.width = floating.w; tmp.height = floating.h;
+      tmp.getContext('2d').putImageData(floating.data, 0, 0);
+      ectx.drawImage(tmp, floating.x, floating.y);
+    }
+    const a = document.createElement('a');
+    a.download = 'pixel-art.png';
+    a.href = exp.toDataURL('image/png');
+    a.click();
+  };
+
+  document.getElementById('importBtn').onclick = () => document.getElementById('fileInput').click();
+  document.getElementById('fileInput').onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const img = new Image();
+    img.onload = () => {
+      const src = document.createElement('canvas');
+      src.width  = img.naturalWidth;
+      src.height = img.naturalHeight;
+      const sctx = src.getContext('2d');
+      sctx.imageSmoothingEnabled = false;
+      sctx.drawImage(img, 0, 0);
+      const srcData = sctx.getImageData(0, 0, src.width, src.height);
+      const out = ctx.createImageData(W, H);
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const sx = Math.min(src.width - 1,  Math.floor(x * src.width  / W));
+          const sy = Math.min(src.height - 1, Math.floor(y * src.height / H));
+          const si = (sy * src.width + sx) * 4;
+          const di = (y * W + x) * 4;
+          out.data[di]     = srcData.data[si];
+          out.data[di + 1] = srcData.data[si + 1];
+          out.data[di + 2] = srcData.data[si + 2];
+          out.data[di + 3] = srcData.data[si + 3];
+        }
+      }
+      pushHistory();
+      ctx.clearRect(0, 0, W, H);
+      ctx.putImageData(out, 0, 0);
+    };
+    img.src = URL.createObjectURL(file);
+  };
+
+  document.getElementById('checkerTheme').onchange = e => {
+    checkerTheme = e.target.value;
+    buildCheckerCanvas();
+  };
+  document.getElementById('gridToggle').onchange = e => {
+    gridOn = e.target.checked;
+    updateGridOverlay();
+  };
+
+  function createFloating(data, w, h, x, y) {
+    floating = { data, w, h, x, y };
+    floatCanvas.width  = w;
+    floatCanvas.height = h;
+    floatCtx.imageSmoothingEnabled = false;
+    floatCtx.putImageData(data, 0, 0);
+    floatCanvas.style.display = 'block';
+    updateFloatingPosition();
+    canvas.style.cursor = 'grab';
+  }
+
+  function updateFloatingPosition() {
+    if (!floating) { floatCanvas.style.display = 'none'; return; }
+    floatCanvas.style.display = 'block';
+    floatCanvas.style.left = (floating.x * zoom) + 'px';
+    floatCanvas.style.top  = (floating.y * zoom) + 'px';
+    floatCanvas.style.width  = (floating.w * zoom) + 'px';
+    floatCanvas.style.height = (floating.h * zoom) + 'px';
+  }
+
+  function stampFloating() {
+    if (!floating) return;
+    pushHistory();
+    const tmp = document.createElement('canvas');
+    tmp.width = floating.w; tmp.height = floating.h;
+    tmp.getContext('2d').putImageData(floating.data, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(tmp, floating.x, floating.y);
+    floating = null;
+    floatCanvas.style.display = 'none';
+    canvas.style.cursor = 'crosshair';
+  }
+
+  function cancelFloating() {
+    floating = null;
+    floatCanvas.style.display = 'none';
+    canvas.style.cursor = 'crosshair';
+  }
+
+  function selectionBBox() {
+    if (regions.length === 0) return null;
+    let minX = W, minY = H, maxX = -1, maxY = -1;
+    for (const r of regions) {
+      if (r.x < minX) minX = r.x;
+      if (r.y < minY) minY = r.y;
+      if (r.x + r.w > maxX) maxX = r.x + r.w;
+      if (r.y + r.h > maxY) maxY = r.y + r.h;
+    }
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+
+  function copySelection() {
+    const b = selectionBBox();
+    if (!b) return;
+    const compos = ctx.getImageData(0, 0, W, H);
+    const out = new ImageData(b.w, b.h);
+    for (let y = 0; y < b.h; y++) {
+      for (let x = 0; x < b.w; x++) {
+        const sx = b.x + x, sy = b.y + y;
+        if (!isSelected(sx, sy)) continue;
+        const si = (sy * W + sx) * 4;
+        const di = (y * b.w + x) * 4;
+        out.data[di]     = compos.data[si];
+        out.data[di + 1] = compos.data[si + 1];
+        out.data[di + 2] = compos.data[si + 2];
+        out.data[di + 3] = compos.data[si + 3];
+      }
+    }
+    addToClipboard(b.w, b.h, out);
+  }
+
+  function cutSelection() {
+    if (!hasSelection()) return;
+    copySelection();
+    pushHistory();
+    for (const r of regions) ctx.clearRect(r.x, r.y, r.w, r.h);
+  }
+
+  function deleteSelection() {
+    if (!hasSelection()) return;
+    pushHistory();
+    for (const r of regions) ctx.clearRect(r.x, r.y, r.w, r.h);
+  }
+
+  // ===== КЛАВИШИ =====
+  const KEY_MAP = {
+    'b':'pencil','e':'eraser','g':'fill','i':'picker','l':'line','r':'rect',
+    'c':'circle','m':'move','s':'select','x':'__swap','[':'__brushDec',']':'__brushInc',
+    'и':'pencil','у':'eraser','п':'fill','ш':'picker','д':'line','к':'rect',
+    'с':'circle','ь':'move','ы':'select','ч':'__swap','х':'__brushDec','ъ':'__brushInc'
+  };
+
+  function handleToolKey(action) {
+    if (action === '__swap') { document.getElementById('swapBtn').click(); return; }
+    if (action === '__brushInc') { setBrushSize(brushSize + 1); return; }
+    if (action === '__brushDec') { setBrushSize(brushSize - 1); return; }
+    const btn = document.querySelector(`.tool[data-tool="${action}"]`);
+    if (btn) btn.click();
+  }
+
+  document.addEventListener('keydown', e => {
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+    if (e.ctrlKey || e.metaKey) {
+      const code = e.code;
+      if (code === 'KeyZ') { e.preventDefault(); document.getElementById('undoBtn').click(); return; }
+      if (code === 'KeyY') { e.preventDefault(); document.getElementById('redoBtn').click(); return; }
+      if (code === 'KeyS') { e.preventDefault(); document.getElementById('exportBtn').click(); return; }
+      if (code === 'KeyC') { e.preventDefault(); copySelection(); return; }
+      if (code === 'KeyX') { e.preventDefault(); cutSelection(); return; }
+      if (code === 'KeyV') { e.preventDefault(); pasteFromClipboard(); return; }
+      if (code === 'KeyA') {
+        e.preventDefault();
+        selectTool('select');
+        document.querySelectorAll('.tool').forEach(b => b.classList.remove('active'));
+        document.querySelector('[data-tool="select"]').classList.add('active');
+        regions = [{ x: 0, y: 0, w: W, h: H }];
+        renderSelectionBoxes();
+        return;
+      }
+      if (code === 'KeyD') { e.preventDefault(); clearSelection(); return; }
+      return;
+    }
+
+    if (e.key === 'Enter') { if (floating) { e.preventDefault(); stampFloating(); return; } }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (floating) { e.preventDefault(); cancelFloating(); return; }
+      if (hasSelection()) { e.preventDefault(); deleteSelection(); return; }
+    }
+    if (e.key === 'Escape') {
+      if (floating) { cancelFloating(); return; }
+      clearSelection(); return;
+    }
+
+    if (e.key.startsWith('Arrow')) {
+      e.preventDefault();
+      if (floating) {
+        const step = e.shiftKey ? 10 : 1;
+        if (e.key === 'ArrowLeft')  floating.x -= step;
+        if (e.key === 'ArrowRight') floating.x += step;
+        if (e.key === 'ArrowUp')    floating.y -= step;
+        if (e.key === 'ArrowDown')  floating.y += step;
+        updateFloatingPosition();
+        return;
+      }
+      const step = e.shiftKey ? 10 : 1;
+      let dx = 0, dy = 0;
+      if (e.key === 'ArrowLeft')  dx = -step;
+      if (e.key === 'ArrowRight') dx =  step;
+      if (e.key === 'ArrowUp')    dy = -step;
+      if (e.key === 'ArrowDown')  dy =  step;
+      if (hasSelection()) { pushHistory(); moveSelectionByKeys(dx, dy); return; }
+      pushHistory();
+      shiftCanvas(ctxSnapshot(), dx, dy);
+      return;
+    }
+
+    const code = e.code;
+    if (code === 'KeyB') { handleToolKey('pencil'); return; }
+    if (code === 'KeyE') { handleToolKey('eraser'); return; }
+    if (code === 'KeyG') { handleToolKey('fill');   return; }
+    if (code === 'KeyI') { handleToolKey('picker'); return; }
+    if (code === 'KeyL') { handleToolKey('line');   return; }
+    if (code === 'KeyR') { handleToolKey('rect');   return; }
+    if (code === 'KeyC') { handleToolKey('circle'); return; }
+    if (code === 'KeyM') { handleToolKey('move');   return; }
+    if (code === 'KeyS') { handleToolKey('select'); return; }
+    if (code === 'KeyX') { handleToolKey('__swap'); return; }
+    if (code === 'BracketLeft')  { handleToolKey('__brushDec'); return; }
+    if (code === 'BracketRight') { handleToolKey('__brushInc'); return; }
+
+    const k = e.key.toLowerCase();
+    if (KEY_MAP[k]) handleToolKey(KEY_MAP[k]);
+  });
+
+  function moveSelectionByKeys(dx, dy) {
+    const img = ctxSnapshot();
+    const data = img.data;
+    const pixels = [];
+    for (const r of regions) {
+      for (let yy = r.y; yy < r.y + r.h; yy++) {
+        for (let xx = r.x; xx < r.x + r.w; xx++) {
+          const si = (yy * W + xx) * 4;
+          const a = data[si + 3];
+          if (a === 0) continue;
+          pixels.push({ x: xx, y: yy, r: data[si], g: data[si+1], b: data[si+2], a });
+        }
+      }
+    }
+    for (const r of regions) ctx.clearRect(r.x, r.y, r.w, r.h);
+    for (const p of pixels) {
+      const nx = p.x + dx, ny = p.y + dy;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      ctx.fillStyle = `rgba(${p.r},${p.g},${p.b},${p.a/255})`;
+      ctx.fillRect(nx, ny, 1, 1);
+    }
+    regions = regions.map(r => ({ x: r.x + dx, y: r.y + dy, w: r.w, h: r.h }));
+    renderSelectionBoxes();
+  }
+
+  // ===== ИНИЦИАЛИЗАЦИЯ =====
+  currentLang = detectLang();
+  buildLangSelector();
+  applyTranslations();
+
+  drawCanvas.width = W; drawCanvas.height = H;
+  drawCanvas.style.width  = (W * zoom) + 'px';
+  drawCanvas.style.height = (H * zoom) + 'px';
+  canvas.width = W; canvas.height = H;
+  canvas.style.width  = (W * zoom) + 'px';
+  canvas.style.height = (H * zoom) + 'px';
+
+  selectTool('pencil');
+  setBrushSize(1);
+  applyZoom();
+})();
+</script>
+</body>
+</html>
